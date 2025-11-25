@@ -11,19 +11,69 @@ import { type as osType } from "node:os";
 import { spawn as nodeSpawn } from "node:child_process";
 import { Buffer } from "node:buffer";
 
+interface DirEntry {
+  name: string;
+  isFile: boolean;
+  isDirectory: boolean;
+  isSymlink: boolean;
+}
+
+interface FileInfo {
+  isFile: boolean;
+  isDirectory: boolean;
+  isSymlink: boolean;
+  size: bigint;
+  mtime: Date | null;
+  atime: Date | null;
+  birthtime: Date | null;
+  ctime: Date | null;
+}
+
+interface CommandStatus {
+  success: boolean;
+  code: number;
+  signal: string | null;
+}
+
+interface CommandOutput {
+  success: boolean;
+  code: number;
+  signal: string | null;
+  stdout: Uint8Array;
+  stderr: Uint8Array;
+}
+
+interface StdinWriter {
+  write(chunk: Uint8Array): Promise<void>;
+  close(): Promise<void>;
+  releaseLock(): void;
+}
+
+interface StdinWrapper {
+  getWriter(): StdinWriter;
+}
+
+interface SpawnedProcess {
+  stdin: StdinWrapper | null;
+  stdout: any;
+  stderr: any;
+  status: Promise<CommandStatus>;
+  output: () => Promise<Uint8Array>;
+}
+
 export class DenoCompat {
-  static async readTextFile(path: string) {
+  static async readTextFile(path: string): Promise<string> {
     const fs = await import("node:fs/promises");
     return await fs.readFile(path, "utf8");
   }
 
-  static async readFile(path: string) {
+  static async readFile(path: string): Promise<Uint8Array> {
     const fs = await import("node:fs/promises");
     const data = await fs.readFile(path);
     return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
   }
 
-  static async *readDir(path: string) {
+  static async *readDir(path: string): AsyncGenerator<DirEntry, void, unknown> {
     const fs = await import("node:fs/promises");
     const entries = await fs.readdir(path, { withFileTypes: true });
 
@@ -37,7 +87,7 @@ export class DenoCompat {
     }
   }
 
-  static async stat(path: string) {
+  static async stat(path: string): Promise<FileInfo> {
     const fs = await import("node:fs/promises");
     const s = await fs.stat(path);
 
@@ -53,15 +103,15 @@ export class DenoCompat {
     };
   }
 
-  static args = process.argv.slice(2);
+  static args: string[] = process.argv.slice(2);
 
-  static env = {
+  static env: { get(name: string): string | undefined } = {
     get(name: string) {
       return process.env[name];
     },
   };
 
-  static build = {
+  static build: { os: string } = {
     os: (() => {
       const os = osType().toLowerCase();
       if (os === "linux") return "linux";
@@ -71,15 +121,15 @@ export class DenoCompat {
     })(),
   };
 
-  static exit(code?: number) {
+  static exit(code?: number): never {
     process.exit(code);
   }
 
-  static cwd() {
+  static cwd(): string {
     return process.cwd();
   }
 
-  static Command = class Command {
+  static Command: any = class Command {
     private cmd: string;
     private options: any;
 
@@ -88,7 +138,7 @@ export class DenoCompat {
       this.options = options || {};
     }
 
-    spawn() {
+    spawn(): SpawnedProcess {
       const args = this.options.args || [];
 
       const spawnOptions: any = {
@@ -120,11 +170,11 @@ export class DenoCompat {
       const child = nodeSpawn(this.cmd, args, spawnOptions);
 
       // Wrap stdin in a WritableStream-like interface
-      const stdinWrapper = child.stdin
+      const stdinWrapper: StdinWrapper | null = child.stdin
         ? {
-          getWriter() {
+          getWriter(): StdinWriter {
             return {
-              write(chunk: Uint8Array) {
+              write(chunk: Uint8Array): Promise<void> {
                 return new Promise<void>((resolve, reject) => {
                   child.stdin.write(chunk, (err: any) => {
                     if (err) reject(err);
@@ -132,7 +182,7 @@ export class DenoCompat {
                   });
                 });
               },
-              close() {
+              close(): Promise<void> {
                 return new Promise<void>((resolve) => {
                   child.stdin.end(() => resolve());
                 });
@@ -156,7 +206,7 @@ export class DenoCompat {
             });
           });
         }),
-        output: async () => {
+        output: async (): Promise<Uint8Array> => {
           const chunks: Buffer[] = [];
           if (child.stdout) {
             for await (const chunk of child.stdout) {
@@ -168,7 +218,7 @@ export class DenoCompat {
       };
     }
 
-    async output() {
+    async output(): Promise<CommandOutput> {
       const process = this.spawn();
       const [status, stdout]: any = await Promise.all([
         process.status,
