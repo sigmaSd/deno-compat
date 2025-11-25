@@ -158,12 +158,7 @@ if (success) {
 The library includes runtime detection utilities:
 
 ```typescript
-import {
-  isBun,
-  isDeno,
-  isNode,
-  runtime,
-} from "@sigma/deno-compat/src/runtime.ts";
+import { isBun, isDeno, isNode, runtime } from "@sigma/deno-compat/runtime";
 
 console.log(runtime); // "deno", "node", or "bun"
 

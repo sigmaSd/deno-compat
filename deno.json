@@ -1,10 +1,11 @@
 {
   "name": "@sigma/deno-compat",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "exports": {
     ".": "./mod.ts",
     "./node": "./src/deno-compat-node.ts",
-    "./bun": "./src/deno-compat-bun.ts"
+    "./bun": "./src/deno-compat-bun.ts",
+    "./runtime": "./src/runtime.ts"
   },
   "license": "MIT",
   "imports": {
