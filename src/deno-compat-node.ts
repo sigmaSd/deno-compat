@@ -62,6 +62,21 @@ interface SpawnedProcess {
 }
 
 export class DenoCompat {
+  static stderr: any = {
+    write(data: Uint8Array): Promise<number> {
+      return new Promise<number>((resolve, reject) => {
+        process.stderr.write(data, (err) => {
+          if (err) reject(err);
+          else resolve(data.length);
+        });
+      });
+    },
+    writeSync(data: Uint8Array): number {
+      process.stderr.write(data);
+      return data.length;
+    },
+  };
+
   static async readTextFile(path: string): Promise<string> {
     const fs = await import("node:fs/promises");
     return await fs.readFile(path, "utf8");

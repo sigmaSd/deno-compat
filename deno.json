@@ -1,6 +1,6 @@
 {
   "name": "@sigma/deno-compat",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "exports": {
     ".": "./mod.ts",
     "./node": "./src/deno-compat-node.ts",
