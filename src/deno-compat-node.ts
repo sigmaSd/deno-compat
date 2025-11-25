@@ -22,7 +22,7 @@ interface FileInfo {
   isFile: boolean;
   isDirectory: boolean;
   isSymlink: boolean;
-  size: bigint;
+  size: number;
   mtime: Date | null;
   atime: Date | null;
   birthtime: Date | null;
@@ -95,7 +95,7 @@ export class DenoCompat {
       isFile: s.isFile(),
       isDirectory: s.isDirectory(),
       isSymlink: s.isSymbolicLink(),
-      size: BigInt(s.size),
+      size: s.size,
       mtime: s.mtime,
       atime: s.atime,
       birthtime: s.birthtime,
