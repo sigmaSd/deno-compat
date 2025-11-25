@@ -62,6 +62,20 @@ interface SpawnedProcess {
 }
 
 export class DenoCompat {
+  static stdin: any = {
+    read(buffer: Uint8Array): Promise<number | null> {
+      return new Promise<number | null>((resolve) => {
+        const chunk = process.stdin.read(buffer.length);
+        if (chunk === null) {
+          resolve(null);
+        } else {
+          buffer.set(chunk);
+          resolve(chunk.length);
+        }
+      });
+    },
+  };
+
   static stderr: any = {
     write(data: Uint8Array): Promise<number> {
       return new Promise<number>((resolve, reject) => {
