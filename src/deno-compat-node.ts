@@ -65,13 +65,35 @@ export class DenoCompat {
   static stdin: any = {
     read(buffer: Uint8Array): Promise<number | null> {
       return new Promise<number | null>((resolve) => {
-        const chunk = process.stdin.read(buffer.length);
-        if (chunk === null) {
+        // Don't use raw mode - let the terminal handle line buffering
+        // Resume stdin to make it readable
+        process.stdin.resume();
+
+        let bytesRead = 0;
+
+        const onData = (chunk) => {
+          const bytesToCopy = Math.min(chunk.length, buffer.length - bytesRead);
+          buffer.set(chunk.slice(0, bytesToCopy), bytesRead);
+          bytesRead += bytesToCopy;
+
+          // Clean up and resolve
+          cleanup();
+          resolve(bytesRead);
+        };
+
+        const onEnd = () => {
+          cleanup();
           resolve(null);
-        } else {
-          buffer.set(chunk);
-          resolve(chunk.length);
-        }
+        };
+
+        const cleanup = () => {
+          process.stdin.removeListener("data", onData);
+          process.stdin.removeListener("end", onEnd);
+          process.stdin.pause();
+        };
+
+        process.stdin.once("data", onData);
+        process.stdin.once("end", onEnd);
       });
     },
   };
