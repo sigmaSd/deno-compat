@@ -1,0 +1,13 @@
+{
+  "name": "@sigma/deno-compat",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./mod.ts",
+    "./node": "./src/deno-compat-node.ts",
+    "./bun": "./src/deno-compat-bun.ts"
+  },
+  "imports": {
+    "@types/bun": "npm:@types/bun@^1.3.3"
+  },
+  "nodeModulesDir": "auto"
+}
