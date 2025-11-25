@@ -121,7 +121,7 @@ export class DenoCompat {
     })(),
   };
 
-  static exit(code?: number): never {
+  static exit(code?: number): void {
     process.exit(code);
   }
 
