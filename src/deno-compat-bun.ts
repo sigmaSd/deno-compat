@@ -123,6 +123,7 @@ if (navigator.userAgent.startsWith("Bun")) {
     };
   }
 
+  // only install if userAgent is Bun
   (globalThis as any).Deno = BunDenoCompat;
 }
 
