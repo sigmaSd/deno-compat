@@ -62,6 +62,147 @@ interface SpawnedProcess {
 }
 
 export class DenoCompat {
+  // ---------------------
+  // Deno.errors compat
+  // ---------------------
+  static errors: any = {
+    PermissionDenied: class PermissionDenied extends Error {
+      constructor(msg = "Permission denied") {
+        super(msg);
+        this.name = "PermissionDenied";
+      }
+    },
+    NotFound: class NotFound extends Error {
+      constructor(msg = "Not found") {
+        super(msg);
+        this.name = "NotFound";
+      }
+    },
+    AlreadyExists: class AlreadyExists extends Error {
+      constructor(msg = "Already exists") {
+        super(msg);
+        this.name = "AlreadyExists";
+      }
+    },
+    InvalidData: class InvalidData extends Error {
+      constructor(msg = "Invalid data") {
+        super(msg);
+        this.name = "InvalidData";
+      }
+    },
+    ConnectionRefused: class ConnectionRefused extends Error {
+      constructor(msg = "Connection refused") {
+        super(msg);
+        this.name = "ConnectionRefused";
+      }
+    },
+    ConnectionReset: class ConnectionReset extends Error {
+      constructor(msg = "Connection reset") {
+        super(msg);
+        this.name = "ConnectionReset";
+      }
+    },
+    BrokenPipe: class BrokenPipe extends Error {
+      constructor(msg = "Broken pipe") {
+        super(msg);
+        this.name = "BrokenPipe";
+      }
+    },
+    NotConnected: class NotConnected extends Error {
+      constructor(msg = "Not connected") {
+        super(msg);
+        this.name = "NotConnected";
+      }
+    },
+    AddrInUse: class AddrInUse extends Error {
+      constructor(msg = "Address in use") {
+        super(msg);
+        this.name = "AddrInUse";
+      }
+    },
+    AddrNotAvailable: class AddrNotAvailable extends Error {
+      constructor(msg = "Address not available") {
+        super(msg);
+        this.name = "AddrNotAvailable";
+      }
+    },
+    TimedOut: class TimedOut extends Error {
+      constructor(msg = "Timed out") {
+        super(msg);
+        this.name = "TimedOut";
+      }
+    },
+    Interrupted: class Interrupted extends Error {
+      constructor(msg = "Interrupted") {
+        super(msg);
+        this.name = "Interrupted";
+      }
+    },
+    BadResource: class BadResource extends Error {
+      constructor(msg = "Bad resource") {
+        super(msg);
+        this.name = "BadResource";
+      }
+    },
+    Http: class Http extends Error {
+      constructor(msg = "HTTP error") {
+        super(msg);
+        this.name = "Http";
+      }
+    },
+  };
+
+  // ---------------------
+  // Deno.FsFile compat
+  // ---------------------
+  static FsFile: any = class {
+    #fh;
+    constructor(fileHandle) {
+      this.#fh = fileHandle;
+    }
+
+    static async fromPath(path, mode = "r") {
+      const fs = await import("node:fs/promises");
+      const fh = await fs.open(path, mode);
+      return new DenoCompat.FsFile(fh);
+    }
+
+    async read(p) {
+      const { bytesRead } = await this.#fh.read(p, 0, p.length, null);
+      return bytesRead === 0 ? null : bytesRead;
+    }
+
+    async write(p) {
+      const { bytesWritten } = await this.#fh.write(p);
+      return bytesWritten;
+    }
+
+    async seek(offset, whence) {
+      // whence: 0 = start, 1 = current, 2 = end
+      if (whence === 0) {
+        await this.#fh.seek(offset, 0);
+        return offset;
+      }
+      if (whence === 1) {
+        const { offset: cur } = await this.#fh.seek(0, 1);
+        const pos = cur + offset;
+        await this.#fh.seek(pos, 0);
+        return pos;
+      }
+      if (whence === 2) {
+        const stat = await this.#fh.stat();
+        const pos = stat.size + offset;
+        await this.#fh.seek(pos, 0);
+        return pos;
+      }
+      throw new Error("Invalid whence");
+    }
+
+    close() {
+      return this.#fh.close();
+    }
+  };
+
   static stdin: any = {
     read(buffer: Uint8Array): Promise<number | null> {
       return new Promise<number | null>((resolve) => {
@@ -156,9 +297,22 @@ export class DenoCompat {
 
   static args: string[] = process.argv.slice(2);
 
-  static env: { get(name: string): string | undefined } = {
-    get(name: string) {
+  static env: any = {
+    get(name) {
       return process.env[name];
+    },
+    set(name, value) {
+      process.env[name] = value;
+    },
+    delete(name) {
+      delete process.env[name];
+    },
+    has(name) {
+      return Object.prototype.hasOwnProperty.call(process.env, name);
+    },
+    toObject() {
+      // Return a shallow copy like Deno does
+      return { ...process.env };
     },
   };
 
