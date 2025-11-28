@@ -25,6 +25,10 @@ npx jsr install @sigma/deno-compat
 Simply import the module at the top of your application, and the global `Deno`
 object will be available in Node.js and Bun environments:
 
+Note that the dynamic detection of node/bun uses dynamic import which might not
+be triggered first depending on the runtime, so its best to import the specific
+import `/node` or `/bun`.
+
 ```typescript
 import "@sigma/deno-compat";
 

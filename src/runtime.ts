@@ -1,8 +1,8 @@
 export const runtime: "deno" | "node" | "bun" =
   typeof navigator !== "undefined" && navigator.userAgent
-    ? /deno/i.test(navigator.userAgent)
+    ? /deno/i.test(navigator.userAgent.toLowerCase())
       ? "deno"
-      : /bun/i.test(navigator.userAgent)
+      : /bun/i.test(navigator.userAgent.toLowerCase())
       ? "bun"
       : "node"
     : "node";

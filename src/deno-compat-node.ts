@@ -63,6 +63,163 @@ interface SpawnedProcess {
 
 export class DenoCompat {
   // ---------------------
+  // Deno.remove compat
+  // ---------------------
+  static async remove(path: string, options: any = {}) {
+    const fs = await import("node:fs/promises");
+    const { recursive = false } = options;
+
+    try {
+      await fs.rm(path, { recursive, force: true });
+    } catch (err) {
+      if (err.code === "ENOENT") throw new DenoCompat.errors.NotFound();
+      if (err.code === "EACCES") throw new DenoCompat.errors.PermissionDenied();
+      throw err;
+    }
+  }
+
+  static removeSync(path: string, options: any = {}) {
+    const fs = require("node:fs");
+    const { recursive = false } = options;
+
+    try {
+      fs.rmSync(path, { recursive, force: true });
+    } catch (err) {
+      if (err.code === "ENOENT") throw new DenoCompat.errors.NotFound();
+      if (err.code === "EACCES") throw new DenoCompat.errors.PermissionDenied();
+      throw err;
+    }
+  }
+
+  // ---------------------
+  // Deno.copyFile compat
+  // ---------------------
+  static async copyFile(fromPath: string, toPath: string) {
+    const fs = await import("node:fs/promises");
+    try {
+      await fs.copyFile(fromPath, toPath);
+    } catch (err) {
+      if (err.code === "ENOENT") throw new DenoCompat.errors.NotFound();
+      if (err.code === "EACCES") throw new DenoCompat.errors.PermissionDenied();
+      throw err;
+    }
+  }
+
+  static copyFileSync(fromPath: string, toPath: string) {
+    const fs = require("node:fs");
+    try {
+      fs.copyFileSync(fromPath, toPath);
+    } catch (err) {
+      if (err.code === "ENOENT") throw new DenoCompat.errors.NotFound();
+      if (err.code === "EACCES") throw new DenoCompat.errors.PermissionDenied();
+      throw err;
+    }
+  }
+
+  // ---------------------
+  // Deno.lstat compat
+  // ---------------------
+  static async lstat(path: string): Promise<FileInfo> {
+    const fs = await import("node:fs/promises");
+    try {
+      const s = await fs.lstat(path);
+      return {
+        isFile: s.isFile(),
+        isDirectory: s.isDirectory(),
+        isSymlink: s.isSymbolicLink(),
+        size: s.size,
+        mtime: s.mtime,
+        atime: s.atime,
+        birthtime: s.birthtime,
+        ctime: s.ctime,
+      };
+    } catch (err) {
+      if (err.code === "ENOENT") throw new DenoCompat.errors.NotFound();
+      if (err.code === "EACCES") throw new DenoCompat.errors.PermissionDenied();
+      throw err;
+    }
+  }
+
+  static lstatSync(path: string): FileInfo {
+    const fs = require("node:fs");
+    try {
+      const s = fs.lstatSync(path);
+      return {
+        isFile: s.isFile(),
+        isDirectory: s.isDirectory(),
+        isSymlink: s.isSymbolicLink(),
+        size: s.size,
+        mtime: s.mtime,
+        atime: s.atime,
+        birthtime: s.birthtime,
+        ctime: s.ctime,
+      };
+    } catch (err) {
+      if (err.code === "ENOENT") throw new DenoCompat.errors.NotFound();
+      if (err.code === "EACCES") throw new DenoCompat.errors.PermissionDenied();
+      throw err;
+    }
+  }
+
+  // ---------------------
+  // Deno.mkdir compat
+  // ---------------------
+  static async mkdir(path: string, options: any = {}) {
+    const fs = await import("node:fs/promises");
+    const { recursive = false, mode } = options;
+
+    try {
+      await fs.mkdir(path, { recursive, mode });
+    } catch (err) {
+      // Map to Deno-style errors
+      if (err.code === "EEXIST") throw new DenoCompat.errors.AlreadyExists();
+      if (err.code === "ENOENT") throw new DenoCompat.errors.NotFound();
+      throw err;
+    }
+  }
+
+  static mkdirSync(path: string, options: any = {}) {
+    const fs = require("node:fs");
+    const { recursive = false, mode } = options;
+
+    try {
+      fs.mkdirSync(path, { recursive, mode });
+    } catch (err) {
+      if (err.code === "EEXIST") throw new DenoCompat.errors.AlreadyExists();
+      if (err.code === "ENOENT") throw new DenoCompat.errors.NotFound();
+      throw err;
+    }
+  }
+
+  // ---------------------
+  // Deno.makeTempDir compat
+  // ---------------------
+  static async makeTempDir(options: any = {}): Promise<string> {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+
+    const dir = options.dir ?? os.tmpdir();
+    const prefix = options.prefix ?? "";
+    const suffix = options.suffix ?? "";
+
+    const template = `${prefix}XXXXXX${suffix}`;
+    const path = await fs.mkdtemp(`${dir}/${template}`);
+    return path;
+  }
+
+  static makeTempDirSync(options: any = {}): string {
+    const fs = require("node:fs");
+    const os = require("node:os");
+
+    const dir = options.dir ?? os.tmpdir();
+    const prefix = options.prefix ?? "";
+    const suffix = options.suffix ?? "";
+
+    const template = `${prefix}XXXXXX${suffix}`;
+    return fs.mkdtempSync(`${dir}/${template}`);
+  }
+
+  // ---------------------
   // Deno.errors compat
   // ---------------------
   static errors: any = {
