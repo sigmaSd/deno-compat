@@ -7,7 +7,8 @@
  */
 
 import process from "node:process";
-import { type as osType } from "node:os";
+import os from "node:os";
+import fs from "node:fs";
 import { spawn as nodeSpawn } from "node:child_process";
 import { Buffer } from "node:buffer";
 
@@ -79,7 +80,6 @@ export class DenoCompat {
   }
 
   static removeSync(path: string, options: any = {}) {
-    const fs = require("node:fs");
     const { recursive = false } = options;
 
     try {
@@ -106,7 +106,6 @@ export class DenoCompat {
   }
 
   static copyFileSync(fromPath: string, toPath: string) {
-    const fs = require("node:fs");
     try {
       fs.copyFileSync(fromPath, toPath);
     } catch (err) {
@@ -141,7 +140,6 @@ export class DenoCompat {
   }
 
   static lstatSync(path: string): FileInfo {
-    const fs = require("node:fs");
     try {
       const s = fs.lstatSync(path);
       return {
@@ -179,7 +177,6 @@ export class DenoCompat {
   }
 
   static mkdirSync(path: string, options: any = {}) {
-    const fs = require("node:fs");
     const { recursive = false, mode } = options;
 
     try {
@@ -208,9 +205,6 @@ export class DenoCompat {
   }
 
   static makeTempDirSync(options: any = {}): string {
-    const fs = require("node:fs");
-    const os = require("node:os");
-
     const dir = options.dir ?? os.tmpdir();
     const prefix = options.prefix ?? "";
     const suffix = options.suffix ?? "";
@@ -475,11 +469,11 @@ export class DenoCompat {
 
   static build: { os: string } = {
     os: (() => {
-      const os = osType().toLowerCase();
-      if (os === "linux") return "linux";
-      if (os === "darwin") return "darwin";
-      if (os === "windows_nt") return "windows";
-      return os;
+      const osT = os.type().toLowerCase();
+      if (osT === "linux") return "linux";
+      if (osT === "darwin") return "darwin";
+      if (osT === "windows_nt") return "windows";
+      return osT;
     })(),
   };
 
