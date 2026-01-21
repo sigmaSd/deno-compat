@@ -53,23 +53,68 @@ if (navigator.userAgent.startsWith("Bun")) {
 
     static dlopen(path: string, symbols: Record<string, any>) {
       const bunSymbols: Record<string, any> = {};
+      const optionalSymbols: Record<string, any> = {};
 
       for (const name in symbols) {
         const symbol = symbols[name];
         if ("type" in symbol) {
           throw new Error("Symbol type notation not supported");
+        }
+
+        const bunSymbol = {
+          args: symbol.parameters.map((type: string) =>
+            this.transformFFIType(type)
+          ),
+          returns: this.transformFFIType(symbol.result),
+        };
+
+        if (symbol.optional) {
+          optionalSymbols[name] = bunSymbol;
         } else {
-          bunSymbols[name] = {
-            args: symbol.parameters.map((type: string) =>
-              this.transformFFIType(type)
-            ),
-            returns: this.transformFFIType(symbol.result),
-          };
+          bunSymbols[name] = bunSymbol;
         }
       }
 
       const lib = dlopen(path, bunSymbols);
+
+      // Try to load optional symbols
+      for (const name in optionalSymbols) {
+        try {
+          const optLib = dlopen(path, {
+            [name]: optionalSymbols[name],
+          });
+          (lib.symbols as any)[name] = optLib.symbols[name];
+        } catch (_e) {
+          // Symbol not found or failed to load, skip it
+        }
+      }
+
       return lib;
+    }
+
+    static async test(
+      name: string | object,
+      fnOrOptions?: ((...args: any[]) => any) | object,
+      maybeFn?: (...args: any[]) => any,
+    ) {
+      const testName = typeof name === "string" ? name : (name as any).name;
+      // Handle overload: test(name, fn) vs test(name, options, fn)
+      let testFn: (...args: any[]) => any;
+
+      if (typeof fnOrOptions === "function") {
+        testFn = fnOrOptions as (...args: any[]) => any;
+      } else if (typeof name !== "string" && (name as any).fn) {
+        testFn = (name as any).fn;
+      } else {
+        testFn = maybeFn!;
+      }
+
+      try {
+        const { test } = await import("bun:test");
+        test(testName, testFn as any);
+      } catch (e) {
+        console.error("Failed to load bun:test", e);
+      }
     }
 
     static UnsafeCallback = class UnsafeCallback {
@@ -93,13 +138,13 @@ if (navigator.userAgent.startsWith("Bun")) {
 
     static UnsafePointerView = class UnsafePointerView {
       static getCString(pointer: any) {
-        return new CString(pointer);
+        return new CString(pointer).toString();
       }
 
       constructor(public ptr: any) {}
 
       getCString() {
-        return new CString(this.ptr);
+        return new CString(this.ptr).toString();
       }
     };
 
