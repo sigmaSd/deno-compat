@@ -93,25 +93,58 @@ if (navigator.userAgent.startsWith("Bun")) {
     }
 
     static async test(
-      name: string | object,
-      fnOrOptions?: ((...args: any[]) => any) | object,
+      nameOrDef: string | ((...args: any[]) => any) | {
+        name?: string;
+        fn: (...args: any[]) => any;
+        ignore?: boolean;
+        only?: boolean;
+        [key: string]: any;
+      },
+      fnOrOptions?: ((...args: any[]) => any) | {
+        ignore?: boolean;
+        only?: boolean;
+        [key: string]: any;
+      },
       maybeFn?: (...args: any[]) => any,
     ) {
-      const testName = typeof name === "string" ? name : (name as any).name;
-      // Handle overload: test(name, fn) vs test(name, options, fn)
+      let testName: string;
       let testFn: (...args: any[]) => any;
+      let ignore = false;
+      let only = false;
 
-      if (typeof fnOrOptions === "function") {
-        testFn = fnOrOptions as (...args: any[]) => any;
-      } else if (typeof name !== "string" && (name as any).fn) {
-        testFn = (name as any).fn;
+      if (typeof nameOrDef === "function") {
+        // Deno.test(fn) - use function name as test name
+        testName = nameOrDef.name || "anonymous";
+        testFn = nameOrDef;
+      } else if (typeof nameOrDef === "object") {
+        // Deno.test({ name, fn, ignore, ... })
+        testName = nameOrDef.name || "anonymous";
+        testFn = nameOrDef.fn;
+        ignore = nameOrDef.ignore ?? false;
+        only = nameOrDef.only ?? false;
+      } else if (typeof fnOrOptions === "function") {
+        // Deno.test(name, fn)
+        testName = nameOrDef;
+        testFn = fnOrOptions;
+      } else if (typeof fnOrOptions === "object" && maybeFn) {
+        // Deno.test(name, options, fn)
+        testName = nameOrDef;
+        testFn = maybeFn;
+        ignore = fnOrOptions.ignore ?? false;
+        only = fnOrOptions.only ?? false;
       } else {
-        testFn = maybeFn!;
+        throw new Error("Invalid Deno.test() arguments");
       }
 
       try {
         const { test } = await import("bun:test");
-        test(testName, testFn as any);
+        if (ignore) {
+          test.skip(testName, testFn as any);
+        } else if (only) {
+          test.only(testName, testFn as any);
+        } else {
+          test(testName, testFn as any);
+        }
       } catch (e) {
         console.error("Failed to load bun:test", e);
       }
