@@ -15,7 +15,7 @@ import { spawn as nodeSpawn } from "node:child_process";
 import { Buffer } from "node:buffer";
 import * as nodeTest from "node:test";
 import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
+const require = createRequire(import.meta.filename);
 
 // keep it as a dynmaic import, so bun doesn't import it
 let koffi: any = null;
