@@ -24,7 +24,8 @@ if (typeof process !== "undefined" && !(process as any).versions?.bun) {
     // NOTE: this import needs to be synchronus thats why we use requrie
     // it needs to be synchrous because in nodejs and nodejs only the await import can
     // be hoisted after the other static imports which breaks the compat (it needs to be the first import)
-    const koffiModule = require("koffi");
+    const koffiStr = "koffi";
+    const koffiModule = require(koffiStr);
     koffi = koffiModule.default || koffiModule;
   } catch (_e) {
     // koffi not available
