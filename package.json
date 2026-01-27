@@ -1,7 +1,7 @@
 {
   "type": "module",
   "dependencies": {
-    "@std/assert": "npm:@jsr/std__assert",
+    "@std/assert": "npm:@jsr/std__assert@1.0.17",
     "koffi": "^2.15.1"
   }
 }
