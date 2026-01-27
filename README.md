@@ -20,9 +20,6 @@ deno add @sigma/deno-compat
 npx jsr install @sigma/deno-compat
 ```
 
-> **Note for Node.js FFI:** If you plan to use `Deno.dlopen`, you must also
-> install `koffi`: `npm install koffi`
-
 ## Usage
 
 Simply import the module at the top of your application, and the global `Deno`
@@ -47,15 +44,16 @@ You can also import specific compatibility layers:
 // Node.js compatibility only
 import "@sigma/deno-compat/node";
 
-// Bun compatibility (includes Node.js + FFI features)
+// Bun compatibility (includes Node.js + Bun FFI)
 import "@sigma/deno-compat/bun";
 ```
 
 ## Features
 
 - **Filesystem**: `readFile`, `readTextFile`, `writeFile`, `writeTextFile`,
-  `stat`, `lstat`, `mkdir`, `remove`, `makeTempDir`, `readDir`.
-- **Process**: `Command`, `exit`, `cwd`, `args`, `env`.
+  `stat`, `lstat`, `mkdir`, `remove`, `makeTempDir`, `readDir`, `copyFile`.
+- **Process**: `Command`, `exit`, `cwd`, `args`, `env`, `stdin`, `stderr`,
+  `build`.
 - **FFI**: `dlopen`, `UnsafePointer`, `UnsafePointerView`, `UnsafeCallback`.
   - Node.js support powered by `koffi`.
   - Bun support powered by `bun:ffi`.
@@ -73,14 +71,8 @@ time and provides the appropriate implementation:
 
 ## Testing
 
-You can run your Deno tests on other runtimes:
-
 ```bash
-# Node.js
-node --test tests/*.ts
-
-# Bun
-bun test
+deno task test
 ```
 
 ## License
