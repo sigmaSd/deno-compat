@@ -92,64 +92,6 @@ if (navigator.userAgent.startsWith("Bun")) {
       return lib;
     }
 
-    static async test(
-      nameOrDef: string | ((...args: any[]) => any) | {
-        name?: string;
-        fn: (...args: any[]) => any;
-        ignore?: boolean;
-        only?: boolean;
-        [key: string]: any;
-      },
-      fnOrOptions?: ((...args: any[]) => any) | {
-        ignore?: boolean;
-        only?: boolean;
-        [key: string]: any;
-      },
-      maybeFn?: (...args: any[]) => any,
-    ) {
-      let testName: string;
-      let testFn: (...args: any[]) => any;
-      let ignore = false;
-      let only = false;
-
-      if (typeof nameOrDef === "function") {
-        // Deno.test(fn) - use function name as test name
-        testName = nameOrDef.name || "anonymous";
-        testFn = nameOrDef;
-      } else if (typeof nameOrDef === "object") {
-        // Deno.test({ name, fn, ignore, ... })
-        testName = nameOrDef.name || "anonymous";
-        testFn = nameOrDef.fn;
-        ignore = nameOrDef.ignore ?? false;
-        only = nameOrDef.only ?? false;
-      } else if (typeof fnOrOptions === "function") {
-        // Deno.test(name, fn)
-        testName = nameOrDef;
-        testFn = fnOrOptions;
-      } else if (typeof fnOrOptions === "object" && maybeFn) {
-        // Deno.test(name, options, fn)
-        testName = nameOrDef;
-        testFn = maybeFn;
-        ignore = fnOrOptions.ignore ?? false;
-        only = fnOrOptions.only ?? false;
-      } else {
-        throw new Error("Invalid Deno.test() arguments");
-      }
-
-      try {
-        const { test } = await import("bun:test");
-        if (ignore) {
-          test.skip(testName, testFn as any);
-        } else if (only) {
-          test.only(testName, testFn as any);
-        } else {
-          test(testName, testFn as any);
-        }
-      } catch (e) {
-        console.error("Failed to load bun:test", e);
-      }
-    }
-
     static UnsafeCallback = class UnsafeCallback {
       inner: any;
       pointer: any;

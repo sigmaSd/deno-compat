@@ -20,14 +20,13 @@ deno add @sigma/deno-compat
 npx jsr install @sigma/deno-compat
 ```
 
+> **Note for Node.js FFI:** If you plan to use `Deno.dlopen`, you must also
+> install `koffi`: `npm install koffi`
+
 ## Usage
 
 Simply import the module at the top of your application, and the global `Deno`
 object will be available in Node.js and Bun environments:
-
-Note that the dynamic detection of node/bun uses dynamic import which might not
-be triggered first depending on the runtime, so its best to import the specific
-import `/node` or `/bun`.
 
 ```typescript
 import "@sigma/deno-compat";
@@ -52,40 +51,37 @@ import "@sigma/deno-compat/node";
 import "@sigma/deno-compat/bun";
 ```
 
-## Runtime Detection
+## Features
 
-The library includes runtime detection utilities:
-
-```typescript
-import { isBun, isDeno, isNode, runtime } from "@sigma/deno-compat/runtime";
-
-console.log(runtime); // "deno", "node", or "bun"
-
-if (isNode) {
-  console.log("Running on Node.js");
-}
-```
+- **Filesystem**: `readFile`, `readTextFile`, `writeFile`, `writeTextFile`,
+  `stat`, `lstat`, `mkdir`, `remove`, `makeTempDir`, `readDir`.
+- **Process**: `Command`, `exit`, `cwd`, `args`, `env`.
+- **FFI**: `dlopen`, `UnsafePointer`, `UnsafePointerView`, `UnsafeCallback`.
+  - Node.js support powered by `koffi`.
+  - Bun support powered by `bun:ffi`.
+- **Testing**: `Deno.test` compatible with `node:test` and `bun:test`.
 
 ## How It Works
 
 The compatibility layer automatically detects the JavaScript runtime at import
 time and provides the appropriate implementation:
 
-- **Deno**: No compatibility layer needed (native APIs)
-- **Node.js**: Implements Deno APIs using Node.js built-in modules (`fs`,
-  `child_process`, `process`, etc.)
-- **Bun**: Extends Node.js compatibility with additional FFI support using
-  `bun:ffi`
+- **Deno**: No compatibility layer needed (native APIs).
+- **Node.js**: Implements Deno APIs using Node.js built-in modules and `koffi`
+  for FFI.
+- **Bun**: Extends Node.js compatibility with Bun's native FFI support.
 
-## Limitations
+## Testing
 
-- Not all Deno APIs are implemented (focused on most commonly used APIs)
-- FFI support is only available in Bun
-- Some advanced Deno features may not have exact equivalents
+You can run your Deno tests on other runtimes:
 
-## Contributing
+```bash
+# Node.js
+node --test tests/*.ts
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+# Bun
+bun test
+```
 
 ## License
 

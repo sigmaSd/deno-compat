@@ -1,7 +1,6 @@
-import { isBun, isNode } from "./src/runtime.ts";
+import "./src/deno-compat-node.ts";
 
-if (isNode) {
-  await import("./src/deno-compat-node.ts");
-} else if (isBun) {
+import { isBun } from "./src/runtime.ts";
+if (isBun) {
   await import("./src/deno-compat-bun.ts");
 }
