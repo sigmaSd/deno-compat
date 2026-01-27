@@ -14,12 +14,17 @@ import path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
 import { Buffer } from "node:buffer";
 import * as nodeTest from "node:test";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 
 // keep it as a dynmaic import, so bun doesn't import it
 let koffi: any = null;
 if (typeof process !== "undefined" && !(process as any).versions?.bun) {
   try {
-    const koffiModule = await import("koffi");
+    // NOTE: this import needs to be synchronus thats why we use requrie
+    // it needs to be synchrous because in nodejs and nodejs only the await import can
+    // be hoisted after the other static imports which breaks the compat (it needs to be the first import)
+    const koffiModule = require("koffi");
     koffi = koffiModule.default || koffiModule;
   } catch (_e) {
     // koffi not available
