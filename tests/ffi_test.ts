@@ -43,3 +43,37 @@ Deno.test("FFI - getpid and hostname", () => {
     lib.close();
   }
 });
+
+Deno.test("FFI - optional symbols", () => {
+  const libName = Deno.build.os === "darwin" ? "libc.dylib" : "libc.so.6";
+
+  let lib;
+  try {
+    lib = Deno.dlopen(libName, {
+      "getpid": { parameters: [], result: "i32" },
+      "non_existent_symbol": { parameters: [], result: "void", optional: true },
+    });
+  } catch (e) {
+    if (
+      (e as Error).message.includes("koffi") &&
+      // deno-lint-ignore no-explicit-any
+      typeof (globalThis as any).process !== "undefined"
+    ) {
+      console.warn("Skipping FFI test: koffi not installed in Node.js");
+      return;
+    }
+    throw e;
+  }
+
+  try {
+    assertExists(lib.symbols.getpid);
+    const optionalSymbol = lib.symbols.non_existent_symbol;
+    if (optionalSymbol !== undefined && optionalSymbol !== null) {
+      throw new Error(
+        `Expected non_existent_symbol to be null or undefined, got ${optionalSymbol}`,
+      );
+    }
+  } finally {
+    lib.close();
+  }
+});

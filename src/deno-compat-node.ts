@@ -726,14 +726,20 @@ export class DenoCompat {
     const resultSymbols: Record<string, any> = {};
 
     for (const [name, desc] of Object.entries(symbols)) {
-      const { parameters, result } = desc as any;
+      const { parameters, result, optional } = desc as any;
       const koffiParams = (parameters || []).map((p: string) =>
         this.transformFFIType(p)
       );
       const koffiResult = this.transformFFIType(result || "void");
 
-      const fn = lib.func(name, koffiResult, koffiParams);
-      resultSymbols[name] = fn;
+      try {
+        const fn = lib.func(name, koffiResult, koffiParams);
+        resultSymbols[name] = fn;
+      } catch (err) {
+        if (!optional) {
+          throw err;
+        }
+      }
     }
 
     return {
