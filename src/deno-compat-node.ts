@@ -718,7 +718,7 @@ export class DenoCompat {
   static dlopen(path: string, symbols: Record<string, any>): any {
     if (!koffi) {
       throw new Error(
-        "koffi is required for Deno.dlopen compatibility in Node.js. Please install it with 'npm install koffi'.",
+        "koffi is required for Deno.dlopen compatibility in Node.js. Please install it with 'npm install koffi@2'.",
       );
     }
 
@@ -759,7 +759,7 @@ export class DenoCompat {
     constructor(def: any, fn: any) {
       if (!koffi) {
         throw new Error(
-          "koffi is required for Deno.UnsafeCallback compatibility in Node.js.",
+          "koffi is required for Deno.UnsafeCallback compatibility in Node.js. Please install it with 'npm install koffi@2'.",
         );
       }
 
@@ -838,7 +838,7 @@ export class DenoCompat {
     static getCString(pointer: any, offset = 0) {
       if (!koffi) {
         throw new Error(
-          "koffi is required for Deno.UnsafePointerView compatibility in Node.js.",
+          "koffi is required for Deno.UnsafePointerView compatibility in Node.js. Please install it with 'npm install koffi@2'.",
         );
       }
 

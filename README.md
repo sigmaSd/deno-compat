@@ -20,6 +20,13 @@ deno add @sigma/deno-compat
 npx jsr install @sigma/deno-compat
 ```
 
+**Note for Node.js users:** If you need to use FFI (`Deno.dlopen`), you must
+manually install `koffi@2`:
+
+```bash
+npm install koffi@2
+```
+
 ## Usage
 
 Simply import the module at the top of your application, and the global `Deno`
