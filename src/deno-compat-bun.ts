@@ -52,15 +52,36 @@ if (navigator.userAgent.startsWith("Bun")) {
     }
 
     static dlopen(path: string, symbols: Record<string, any>) {
+      // Separate symbols into function symbols vs static (type-notation) symbols.
+      // Also track which function symbols need name aliasing.
       const bunSymbols: Record<string, any> = {};
-      const optionalSymbols: Record<string, any> = {};
+      const aliasedSymbols: Record<
+        string,
+        { nativeName: string; bunSymbol: any; optional: boolean }
+      > = {};
+      const staticSymbols: Record<
+        string,
+        { nativeName: string; optional: boolean }
+      > = {};
 
-      for (const name in symbols) {
-        const symbol = symbols[name];
+      for (const jsName in symbols) {
+        const symbol = symbols[jsName];
+
         if ("type" in symbol) {
-          throw new Error("Symbol type notation not supported");
+          // ForeignStatic: a global/static variable, not a function.
+          // We register it with Bun as a dummy no-arg function so that
+          // dlsym resolves the address. We then grab .ptr from the
+          // resulting symbol object to get the raw dlsym pointer.
+          const nativeName = symbol.name || jsName;
+          staticSymbols[jsName] = {
+            nativeName,
+            optional: symbol.optional ?? false,
+          };
+          continue;
         }
 
+        // ForeignFunction
+        const nativeName = symbol.name || jsName;
         const bunSymbol = {
           args: symbol.parameters.map((type: string) =>
             this.transformFFIType(type)
@@ -68,24 +89,88 @@ if (navigator.userAgent.startsWith("Bun")) {
           returns: this.transformFFIType(symbol.result),
         };
 
-        if (symbol.optional) {
-          optionalSymbols[name] = bunSymbol;
+        if (nativeName !== jsName || symbol.optional) {
+          // Must be loaded separately: Bun keys the symbol lookup by
+          // the object key, so aliased names need their own dlopen call.
+          aliasedSymbols[jsName] = {
+            nativeName,
+            bunSymbol,
+            optional: symbol.optional ?? false,
+          };
         } else {
-          bunSymbols[name] = bunSymbol;
+          bunSymbols[jsName] = bunSymbol;
         }
       }
 
-      const lib = dlopen(path, bunSymbols);
+      // Open the library. If there are no direct function symbols we
+      // still need a lib object, so open with one of the aliased or
+      // static symbols as a dummy.
+      let lib: any;
+      const hasDirectSymbols = Object.keys(bunSymbols).length > 0;
 
-      // Try to load optional symbols
-      for (const name in optionalSymbols) {
+      if (hasDirectSymbols) {
+        lib = dlopen(path, bunSymbols);
+      } else {
+        // Pick the first aliased function or static symbol to bootstrap
+        // the library handle with a single dummy lookup.
+        const firstAliased = Object.values(aliasedSymbols)[0];
+        const firstStatic = Object.values(staticSymbols)[0];
+        const bootstrapName = firstAliased?.nativeName ??
+          firstStatic?.nativeName;
+
+        if (!bootstrapName) {
+          throw new Error("dlopen requires at least one symbol");
+        }
+
+        // Open with a dummy symbol definition just to get a lib handle
+        const dummyDef = firstAliased
+          ? { [firstAliased.nativeName]: firstAliased.bunSymbol }
+          : { [bootstrapName]: { args: [], returns: FFIType.ptr } };
+
+        lib = dlopen(path, dummyDef);
+
+        // If we bootstrapped with an aliased function, store its result
+        if (firstAliased) {
+          const firstJsName = Object.keys(aliasedSymbols)[0];
+          (lib.symbols as any)[firstJsName] =
+            lib.symbols[firstAliased.nativeName];
+          delete aliasedSymbols[firstJsName];
+        }
+      }
+
+      // Load aliased and optional function symbols one at a time
+      for (const jsName in aliasedSymbols) {
+        const { nativeName, bunSymbol, optional } = aliasedSymbols[jsName];
         try {
           const optLib = dlopen(path, {
-            [name]: optionalSymbols[name],
+            [nativeName]: bunSymbol,
           });
-          (lib.symbols as any)[name] = optLib.symbols[name];
+          (lib.symbols as any)[jsName] = optLib.symbols[nativeName];
         } catch (_e) {
-          // Symbol not found or failed to load, skip it
+          if (!optional) {
+            throw _e;
+          }
+          // Optional symbol not found, skip it
+        }
+      }
+
+      // Resolve static/global variable symbols.
+      // We open the symbol as a dummy no-arg function returning ptr,
+      // then use .ptr on the result to get the raw dlsym address.
+      for (const jsName in staticSymbols) {
+        const { nativeName, optional } = staticSymbols[jsName];
+        try {
+          const symLib = dlopen(path, {
+            [nativeName]: { args: [], returns: FFIType.ptr },
+          });
+          const rawSym = symLib.symbols[nativeName] as any;
+          // .ptr is the raw dlsym address of the symbol
+          (lib.symbols as any)[jsName] = rawSym.ptr;
+        } catch (_e) {
+          if (!optional) {
+            throw _e;
+          }
+          // Optional static symbol not found, skip it
         }
       }
 

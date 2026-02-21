@@ -725,19 +725,40 @@ export class DenoCompat {
     const lib = koffi.load(path);
     const resultSymbols: Record<string, any> = {};
 
-    for (const [name, desc] of Object.entries(symbols)) {
-      const { parameters, result, optional } = desc as any;
-      const koffiParams = (parameters || []).map((p: string) =>
-        this.transformFFIType(p)
-      );
-      const koffiResult = this.transformFFIType(result || "void");
+    for (const [jsName, desc] of Object.entries(symbols)) {
+      const optional = desc.optional ?? false;
 
-      try {
-        const fn = lib.func(name, koffiResult, koffiParams);
-        resultSymbols[name] = fn;
-      } catch (err) {
-        if (!optional) {
-          throw err;
+      if ("type" in desc) {
+        // ForeignStatic: a global/static variable in the shared library
+        // desc.name is the actual native symbol name (defaults to the JS key)
+        const nativeName = desc.name || jsName;
+        const koffiType = this.transformFFIType(desc.type);
+
+        try {
+          const sym = lib.symbol(nativeName, koffiType);
+          resultSymbols[jsName] = sym;
+        } catch (err) {
+          if (!optional) {
+            throw err;
+          }
+        }
+      } else {
+        // ForeignFunction: a callable function symbol
+        // desc.name is the actual native symbol name (defaults to the JS key)
+        const nativeName = desc.name || jsName;
+        const { parameters, result } = desc as any;
+        const koffiParams = (parameters || []).map((p: string) =>
+          this.transformFFIType(p)
+        );
+        const koffiResult = this.transformFFIType(result || "void");
+
+        try {
+          const fn = lib.func(nativeName, koffiResult, koffiParams);
+          resultSymbols[jsName] = fn;
+        } catch (err) {
+          if (!optional) {
+            throw err;
+          }
         }
       }
     }
