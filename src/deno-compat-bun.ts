@@ -219,6 +219,11 @@ if (navigator.userAgent.startsWith("Bun")) {
 
       // @ts-ignore TypedArray exists in Bun
       static of(buffer: ArrayBuffer | TypedArray) {
+        // Handle empty buffers - bun's FFI doesn't support empty ArrayBufferViews
+        if (buffer.byteLength === 0) {
+          // Allocate at least 8 bytes for pointer storage
+          return ptr(new Uint8Array(8));
+        }
         return ptr(buffer);
       }
 
