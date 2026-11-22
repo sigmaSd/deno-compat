@@ -32,6 +32,11 @@ if (typeof process !== "undefined" && !(process as any).versions?.bun) {
   }
 }
 
+/** Whether Koffi can read memory through this pointer (a BigInt address). */
+function isKoffiPointer(pointer: unknown): pointer is bigint {
+  return koffi !== null && typeof pointer === "bigint" && pointer !== 0n;
+}
+
 interface DirEntry {
   name: string;
   isFile: boolean;
@@ -718,7 +723,7 @@ export class DenoCompat {
   static dlopen(path: string, symbols: Record<string, any>): any {
     if (!koffi) {
       throw new Error(
-        "koffi is required for Deno.dlopen compatibility in Node.js. Please install it with 'npm install koffi@2'.",
+        "koffi is required for Deno.dlopen compatibility in Node.js. Please install it with 'npm install koffi'.",
       );
     }
 
@@ -780,7 +785,7 @@ export class DenoCompat {
     constructor(def: any, fn: any) {
       if (!koffi) {
         throw new Error(
-          "koffi is required for Deno.UnsafeCallback compatibility in Node.js. Please install it with 'npm install koffi@2'.",
+          "koffi is required for Deno.UnsafeCallback compatibility in Node.js. Please install it with 'npm install koffi'.",
         );
       }
 
@@ -793,7 +798,7 @@ export class DenoCompat {
       let resultType = def.result || "void";
       resultType = DenoCompat.transformFFIType(resultType);
 
-      // Create callback proto using C function signature syntax (Koffi 2.x)
+      // Create callback proto using C function signature syntax
       // Each callback needs a unique type name to avoid "Duplicate type name" errors
       // Format: "returnType CallbackName(param1, param2, ...)"
       const callbackName = `Callback_${DenoCompat.#callbackCounter++}`;
@@ -801,7 +806,7 @@ export class DenoCompat {
       const proto = koffi.proto(protoStr);
 
       // Use koffi.register to create a persistent callback pointer
-      // This returns an External pointer that can be passed to C functions as void *
+      // This returns a BigInt address that can be passed to C functions as void *
       this.#cb = koffi.register(fn, koffi.pointer(proto));
       this.pointer = this.#cb;
     }
@@ -839,16 +844,7 @@ export class DenoCompat {
     }
 
     static value(pointer: any) {
-      // For koffi External objects, we need to extract the numeric address
-      if (koffi && typeof pointer === "object" && pointer !== null) {
-        try {
-          // koffi.address() converts External objects to BigInt addresses
-          return koffi.address(pointer);
-        } catch (_e) {
-          // If address() fails, return as-is
-          return pointer;
-        }
-      }
+      // Koffi 3 pointers are already BigInt addresses.
       return pointer;
     }
   };
@@ -859,7 +855,7 @@ export class DenoCompat {
     static getCString(pointer: any, offset = 0) {
       if (!koffi) {
         throw new Error(
-          "koffi is required for Deno.UnsafePointerView compatibility in Node.js. Please install it with 'npm install koffi@2'.",
+          "koffi is required for Deno.UnsafePointerView compatibility in Node.js. Please install it with 'npm install koffi'.",
         );
       }
 
@@ -879,38 +875,13 @@ export class DenoCompat {
         return nullIndex >= 0 ? str.substring(0, nullIndex) : str;
       }
 
-      // Handle koffi External pointer objects
-      if (typeof pointer === "object" && pointer !== null) {
+      // Native pointers: read up to the NUL terminator.
+      if (isKoffiPointer(pointer)) {
         try {
-          // Use koffi.view() directly with the External pointer object
-          // koffi.view() expects the pointer object, not the numeric address
-          const MAX_STRING_LENGTH = 65536; // 64KB max
-          const view = koffi.view(pointer, MAX_STRING_LENGTH);
-          const bytes = new Uint8Array(view);
-
-          // Apply offset if needed
-          const startIndex = offset;
-
-          // Find null terminator starting from offset
-          let nullIndex = -1;
-          for (let i = startIndex; i < bytes.length; i++) {
-            if (bytes[i] === 0) {
-              nullIndex = i;
-              break;
-            }
-          }
-
-          if (nullIndex === -1) nullIndex = bytes.length;
-
-          // Convert to string from offset to null terminator
-          return Buffer.from(bytes.subarray(startIndex, nullIndex)).toString(
-            "utf8",
-          );
+          return koffi.decode(pointer, offset, "char", -1);
         } catch (e) {
-          // If koffi.view() is not available (e.g., in Electron) or fails,
-          // we cannot read the memory. This is a limitation of the runtime.
           throw new Error(
-            `Cannot read string from External pointer: ${e.message}. ` +
+            `Cannot read string from pointer: ${(e as Error).message}. ` +
               `Consider declaring the function with 'char *' return type instead of 'pointer' ` +
               `so koffi can auto-convert the string.`,
           );
@@ -928,95 +899,61 @@ export class DenoCompat {
       return DenoCompat.UnsafePointerView.getCString(this.pointer, offset);
     }
 
-    getUint8(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readUInt8(offset);
+    /**
+     * Read a value from a buffer, or from native memory through Koffi.
+     * Returns `fallback` for pointers that can't be read.
+     */
+    #read<T>(
+      offset: number,
+      koffiType: string,
+      fromBuffer: (buffer: Buffer, offset: number) => T,
+      fallback: T,
+    ): T {
+      const pointer = this.pointer;
+      if (Buffer.isBuffer(pointer)) return fromBuffer(pointer, offset);
+      if (pointer instanceof Uint8Array) {
+        return fromBuffer(Buffer.from(pointer), offset);
       }
-      return 0;
+      if (isKoffiPointer(pointer)) {
+        return koffi.decode(pointer, offset, koffiType);
+      }
+      return fallback;
+    }
+
+    getUint8(offset = 0) {
+      return this.#read(offset, "uint8", (b, o) => b.readUInt8(o), 0);
     }
     getInt8(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readInt8(offset);
-      }
-      return 0;
+      return this.#read(offset, "int8", (b, o) => b.readInt8(o), 0);
     }
     getUint16(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readUInt16LE(offset);
-      }
-      return 0;
+      return this.#read(offset, "uint16", (b, o) => b.readUInt16LE(o), 0);
     }
     getInt16(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readInt16LE(offset);
-      }
-      return 0;
+      return this.#read(offset, "int16", (b, o) => b.readInt16LE(o), 0);
     }
     getUint32(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readUInt32LE(offset);
-      }
-      return 0;
+      return this.#read(offset, "uint32", (b, o) => b.readUInt32LE(o), 0);
     }
     getInt32(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readInt32LE(offset);
-      }
-      return 0;
+      return this.#read(offset, "int32", (b, o) => b.readInt32LE(o), 0);
     }
     getBigUint64(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readBigUInt64LE(offset);
-      }
-      return 0n;
+      // Koffi returns a Number for 64-bit values that fit in one.
+      return BigInt(
+        this.#read(offset, "uint64", (b, o) => b.readBigUInt64LE(o), 0n),
+      );
     }
     getBigInt64(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readBigInt64LE(offset);
-      }
-      return 0n;
+      return BigInt(
+        this.#read(offset, "int64", (b, o) => b.readBigInt64LE(o), 0n),
+      );
     }
     getFloat32(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readFloatLE(offset);
-      }
-      return 0;
+      return this.#read(offset, "float", (b, o) => b.readFloatLE(o), 0);
     }
     getFloat64(offset = 0) {
-      if (Buffer.isBuffer(this.pointer) || this.pointer instanceof Uint8Array) {
-        const buffer = Buffer.isBuffer(this.pointer)
-          ? this.pointer
-          : Buffer.from(this.pointer);
-        return buffer.readDoubleLE(offset);
-      }
-      return 0;
+      return this.#read(offset, "double", (b, o) => b.readDoubleLE(o), 0);
     }
   };
 }

@@ -4,6 +4,9 @@
     "@std/assert": "npm:@jsr/std__assert@1.0.17"
   },
   "peerDependencies": {
-    "koffi": "^2.15.1"
+    "koffi": "^3.0.0"
+  },
+  "devDependencies": {
+    "koffi": "^3.3.8"
   }
 }

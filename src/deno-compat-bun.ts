@@ -8,7 +8,9 @@
 import { DenoCompat as NodeDenoCompat } from "./deno-compat-node.ts";
 
 if (navigator.userAgent.startsWith("Bun")) {
-  const { dlopen, FFIType, CString, ptr, JSCallback } = await import("bun:ffi");
+  const { dlopen, FFIType, CString, ptr, read, JSCallback } = await import(
+    "bun:ffi"
+  );
 
   class BunDenoCompat extends NodeDenoCompat {
     static transformFFIType(denoType: string) {
@@ -197,14 +199,44 @@ if (navigator.userAgent.startsWith("Bun")) {
     };
 
     static UnsafePointerView = class UnsafePointerView {
-      static getCString(pointer: any) {
-        return new CString(pointer).toString();
+      static getCString(pointer: any, offset = 0) {
+        return new CString(pointer, offset).toString();
       }
 
       constructor(public ptr: any) {}
 
-      getCString() {
-        return new CString(this.ptr).toString();
+      getCString(offset = 0) {
+        return new CString(this.ptr, offset).toString();
+      }
+      getUint8(offset = 0) {
+        return read.u8(this.ptr, offset);
+      }
+      getInt8(offset = 0) {
+        return read.i8(this.ptr, offset);
+      }
+      getUint16(offset = 0) {
+        return read.u16(this.ptr, offset);
+      }
+      getInt16(offset = 0) {
+        return read.i16(this.ptr, offset);
+      }
+      getUint32(offset = 0) {
+        return read.u32(this.ptr, offset);
+      }
+      getInt32(offset = 0) {
+        return read.i32(this.ptr, offset);
+      }
+      getBigUint64(offset = 0) {
+        return BigInt(read.u64(this.ptr, offset));
+      }
+      getBigInt64(offset = 0) {
+        return BigInt(read.i64(this.ptr, offset));
+      }
+      getFloat32(offset = 0) {
+        return read.f32(this.ptr, offset);
+      }
+      getFloat64(offset = 0) {
+        return read.f64(this.ptr, offset);
       }
     };
 
