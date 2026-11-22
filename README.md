@@ -62,8 +62,10 @@ import "@sigma/deno-compat/bun";
 - **Process**: `Command`, `exit`, `cwd`, `args`, `env`, `stdin`, `stderr`,
   `build`.
 - **FFI**: `dlopen`, `UnsafePointer`, `UnsafePointerView`, `UnsafeCallback`.
-  - Node.js support powered by `koffi`.
-  - Bun support powered by `bun:ffi`.
+  - Node.js support powered by `koffi`. Symbols marked `nonblocking: true` run
+    on a worker thread and return a promise, as in Deno.
+  - Bun support powered by `bun:ffi`. Bun has no off-thread calls, so
+    `nonblocking` symbols run on the main thread and return their result.
 - **Testing**: `Deno.test` compatible with `node:test` and `bun:test`.
 
 ## How It Works

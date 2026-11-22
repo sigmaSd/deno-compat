@@ -130,3 +130,45 @@ Deno.test("FFI - read strings and numbers from native memory", () => {
     lib.close();
   }
 });
+
+Deno.test("FFI - nonblocking calls run off the main thread", async () => {
+  // deno-lint-ignore no-explicit-any
+  if (typeof (globalThis as any).Bun !== "undefined") return; // No async FFI.
+  const libName = Deno.build.os === "darwin" ? "libc.dylib" : "libc.so.6";
+
+  let lib;
+  try {
+    lib = Deno.dlopen(libName, {
+      "usleep": { parameters: ["u32"], result: "i32", nonblocking: true },
+    });
+  } catch (e) {
+    if (
+      (e as Error).message.includes("koffi") &&
+      // deno-lint-ignore no-explicit-any
+      typeof (globalThis as any).process !== "undefined"
+    ) {
+      console.warn("Skipping FFI test: koffi not installed in Node.js");
+      return;
+    }
+    throw e;
+  }
+
+  try {
+    const events: string[] = [];
+    const sleeping = lib.symbols.usleep(100_000);
+    assertEquals(sleeping instanceof Promise, true);
+    const timer = new Promise<void>((resolve) =>
+      setTimeout(() => {
+        events.push("timer");
+        resolve();
+      }, 10)
+    );
+    const result = await sleeping;
+    events.push("sleep");
+    await timer;
+    assertEquals(result, 0);
+    assertEquals(events, ["timer", "sleep"]);
+  } finally {
+    lib.close();
+  }
+});

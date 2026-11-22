@@ -759,7 +759,17 @@ export class DenoCompat {
 
         try {
           const fn = lib.func(nativeName, koffiResult, koffiParams);
-          resultSymbols[jsName] = fn;
+          // Like Deno, a nonblocking symbol runs on a worker thread and
+          // returns a promise.
+          resultSymbols[jsName] = desc.nonblocking
+            ? (...args: any[]) =>
+              new Promise((resolve, reject) => {
+                fn.async(...args, (error: unknown, value: unknown) => {
+                  if (error) reject(error);
+                  else resolve(value);
+                });
+              })
+            : fn;
         } catch (err) {
           if (!optional) {
             throw err;
